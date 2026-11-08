@@ -1,7 +1,7 @@
-package com.miguel.wealth_orders.entity;
+package com.miguel.wealth_orders.domain;
 
-import com.miguel.wealth_orders.enums.OrderStatus;
-import com.miguel.wealth_orders.enums.OrderType;
+import com.miguel.wealth_orders.domain.enums.OrderStatus;
+import com.miguel.wealth_orders.domain.enums.OrderType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
@@ -49,16 +49,16 @@ public class Order {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    public Order() {}
+    public Order() {
+    }
 
-    public Order(Client client, String isin, OrderType orderType, BigDecimal quantity, BigDecimal limitPrice, OrderStatus orderStatus, Long version) {
+    public Order(Client client, String isin, OrderType orderType, BigDecimal quantity, BigDecimal limitPrice, OrderStatus orderStatus) {
         this.client = client;
         this.isin = isin;
         this.orderType = orderType;
         this.quantity = quantity;
         this.limitPrice = limitPrice;
         this.orderStatus = orderStatus;
-        this.version = version;
     }
 
     public Long getId() {

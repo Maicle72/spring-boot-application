@@ -1,4 +1,4 @@
-package com.miguel.wealth_orders.entity;
+package com.miguel.wealth_orders.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

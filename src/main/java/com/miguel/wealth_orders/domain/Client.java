@@ -1,6 +1,6 @@
-package com.miguel.wealth_orders.entity;
+package com.miguel.wealth_orders.domain;
 
-import com.miguel.wealth_orders.enums.ClientRiskProfile;
+import com.miguel.wealth_orders.domain.enums.ClientRiskProfile;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

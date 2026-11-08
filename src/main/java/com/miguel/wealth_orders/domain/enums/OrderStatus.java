@@ -1,4 +1,4 @@
-package com.miguel.wealth_orders.enums;
+package com.miguel.wealth_orders.domain.enums;
 
 public enum OrderStatus {
     PENDING,
