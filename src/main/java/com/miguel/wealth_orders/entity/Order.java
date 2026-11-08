@@ -44,7 +44,7 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(name = "order_status", nullable = false)
     private OrderStatus orderStatus = OrderStatus.PENDING;
-    
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
