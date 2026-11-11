@@ -1,7 +1,11 @@
 package com.miguel.wealth_orders.domain;
 
+import com.miguel.wealth_orders.domain.enums.ClientRiskProfile;
 import com.miguel.wealth_orders.domain.enums.OrderStatus;
 import com.miguel.wealth_orders.domain.enums.OrderType;
+import com.miguel.wealth_orders.exception.order.InvalidRequestOrderQuantityAndLimitException;
+import com.miguel.wealth_orders.exception.order.OrderCanNotBeExecutedException;
+import com.miguel.wealth_orders.exception.order.OrderNotPendingException;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
@@ -9,14 +13,16 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "T_ORDER")
-public class Order {
+public class Order extends Auditable {
+
+    private static final BigDecimal MAX_RISK_LIMIT = BigDecimal.valueOf(100000);
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @ManyToOne
-    @Column(name = "client_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", nullable = false)
     private Client client;
 
     @NotBlank
@@ -31,13 +37,14 @@ public class Order {
 
     @NotNull
     @Positive
-    @Column(name = "quantity", nullable = false)
+    @Digits(integer = 19, fraction = 4)
+    @Column(name = "quantity", nullable = false, precision = 19, scale = 4)
     private BigDecimal quantity;
 
     @NotNull
     @Positive
-    @Digits(integer = 10, fraction = 2)
-    @Column(name = "limit_price", nullable = false, scale = 2)
+    @Digits(integer = 19, fraction = 4)
+    @Column(name = "limit_price", nullable = false, precision = 19, scale = 4)
     private BigDecimal limitPrice;
 
     @NotNull
@@ -52,13 +59,46 @@ public class Order {
     public Order() {
     }
 
-    public Order(Client client, String isin, OrderType orderType, BigDecimal quantity, BigDecimal limitPrice, OrderStatus orderStatus) {
+    public Order(Client client, String isin, OrderType orderType, BigDecimal quantity, BigDecimal limitPrice) {
+        assertWithinRiskLimit(client, quantity, limitPrice);
         this.client = client;
         this.isin = isin;
         this.orderType = orderType;
         this.quantity = quantity;
         this.limitPrice = limitPrice;
-        this.orderStatus = orderStatus;
+    }
+
+    private void assertWithinRiskLimit(Client client, BigDecimal quantity, BigDecimal limitPrice) {
+        if (quantity == null || limitPrice == null) {
+            throw new InvalidRequestOrderQuantityAndLimitException();
+        }
+
+        BigDecimal total = quantity.multiply(limitPrice);
+        if (ClientRiskProfile.CONSERVATIVE.equals(client.getClientRiskProfile()) && total.compareTo(MAX_RISK_LIMIT) > 0) {
+            throw new OrderCanNotBeExecutedException(client.getId());
+        }
+    }
+
+    public void setNewOrderInformation(BigDecimal quantity, BigDecimal limitPrice) {
+        if (OrderStatus.PENDING != this.orderStatus) {
+            throw new OrderNotPendingException(this.getId(), orderStatus, "changed");
+        }
+
+        BigDecimal finalQuantity = quantity != null ? quantity : this.quantity;
+        BigDecimal finalLimitPrice = limitPrice != null ? limitPrice : this.limitPrice;
+
+        assertWithinRiskLimit(client, finalQuantity, finalLimitPrice);
+
+        this.quantity = finalQuantity;
+        this.limitPrice = finalLimitPrice;
+    }
+
+    public void setNewOrderStatus(OrderStatus newOrderStatus) {
+        if (!this.getOrderStatus().canTransactionTo(newOrderStatus)) {
+            throw new OrderNotPendingException(this.getId(), this.getOrderStatus(), newOrderStatus.name().toLowerCase());
+        }
+
+        this.orderStatus = newOrderStatus;
     }
 
     public Long getId() {

@@ -2,6 +2,11 @@ package com.miguel.wealth_orders.service;
 
 import com.miguel.wealth_orders.controller.dto.ClientRequest;
 import com.miguel.wealth_orders.domain.Client;
+import com.miguel.wealth_orders.domain.enums.OrderStatus;
+import com.miguel.wealth_orders.exception.client.ClientNotFoundException;
+import com.miguel.wealth_orders.exception.client.ClientVersionPreconditionException;
+import com.miguel.wealth_orders.exception.client.ClientWithPendingOrdersException;
+import com.miguel.wealth_orders.exception.client.EmailExistsConflictException;
 import com.miguel.wealth_orders.repository.ClientRepository;
 import com.miguel.wealth_orders.repository.OrderRepository;
 import org.springframework.data.domain.Page;
@@ -12,48 +17,63 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ClientService {
 
-    private ClientRepository clientRepository;
-    private OrderRepository orderRepository;
+    private final ClientRepository clientRepository;
+    private final OrderRepository orderRepository;
 
     public ClientService(ClientRepository clientRepository, OrderRepository orderRepository) {
         this.clientRepository = clientRepository;
         this.orderRepository = orderRepository;
     }
 
+    @Transactional
     public Client createClient(ClientRequest clientRequest) {
-        var clientFlushed = clientRepository.saveAndFlush(new Client(clientRequest.fullName(), clientRequest.email(), clientRequest.clientRiskProfile()));
+        String clientEmail = clientRequest.email();
+        if (this.clientRepository.existsByEmail(clientRequest.email())) {
+            throw new EmailExistsConflictException(clientEmail);
+        }
 
-        return clientFlushed;
+        return this.clientRepository.saveAndFlush(
+                new Client(clientRequest.fullName(), clientEmail, clientRequest.clientRiskProfile()));
     }
 
-    public Client getClientById(Long id) {
-        var client = clientRepository.getReferenceById(id);
-        return client;
+    @Transactional(readOnly = true)
+    public Client getClientById(Long clientId) {
+        return this.clientRepository.findByIdAndActiveTrue(clientId).orElseThrow(() -> new ClientNotFoundException(clientId));
     }
 
     @Transactional(readOnly = true)
     public Page<Client> getPageableClientList(Pageable pageable) {
-        return this.clientRepository.findAll(pageable);
+        return this.clientRepository.findAllByActiveTrue(pageable);
     }
 
-    public Client updateClientInformation(Long id, ClientRequest clientRequest) {
-        var clientFetched = this.clientRepository.getReferenceById(id);
+    @Transactional
+    public Client updateClientInformation(Long clientId, ClientRequest clientRequest, long expectedVersion) {
+        Client client = this.getClientById(clientId);
 
-        return this.clientRepository.saveAndFlush(setNewClientInformation(clientFetched, clientRequest));
+        long clientVersion = client.getVersion();
+        if (clientVersion != expectedVersion) {
+            throw new ClientVersionPreconditionException(clientId, clientVersion, expectedVersion);
+        }
+
+        return this.clientRepository.saveAndFlush(setNewClientInformation(client, clientRequest));
     }
 
-    public void deleteClient(Long id) {
-        var clientFetched = this.clientRepository.getReferenceById(id);
-        this.clientRepository.delete(clientFetched);
-    }
+    @Transactional
+    public void deleteClient(Long clientId) {
+        Client client = this.clientRepository.findByIdAndActiveTrue(clientId).orElseThrow(() -> new ClientNotFoundException(clientId));
 
+        boolean existsOrders = this.orderRepository.existsByClientIdAndOrderStatus(client.getId(), OrderStatus.PENDING);
+        if (existsOrders) {
+            throw new ClientWithPendingOrdersException(clientId);
+        }
+
+        this.clientRepository.delete(client);
+    }
 
     private Client setNewClientInformation(Client client, ClientRequest clientRequest) {
         client.setFullName(clientRequest.fullName());
         client.setEmail(clientRequest.email());
-        client.setRiskProfile(clientRequest.clientRiskProfile());
+        client.setClientRiskProfile(clientRequest.clientRiskProfile());
         return client;
     }
-
-
 }

@@ -5,9 +5,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.SQLDelete;
 
 @Entity
 @Table(name = "T_CLIENT")
+@SQLDelete(sql = "UPDATE T_CLIENT SET active = false where id = ? and version = ?")
 public class Client extends Auditable {
 
     @Id
@@ -19,22 +21,29 @@ public class Client extends Auditable {
     private String fullName;
 
     @NotBlank
-    @Email(regexp = "^[^@\\s]+@[^@\\s+\\.[^@\\s]+$")
+    @Email(regexp = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "risk_profile", nullable = false)
-    private ClientRiskProfile riskProfile;
+    private ClientRiskProfile clientRiskProfile;
+
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     public Client() {
     }
 
-    public Client(String fullName, String email, ClientRiskProfile riskProfile) {
+    public Client(String fullName, String email, ClientRiskProfile clientRiskProfile) {
         this.fullName = fullName;
         this.email = email;
-        this.riskProfile = riskProfile;
+        this.clientRiskProfile = clientRiskProfile;
     }
 
     public Long getId() {
@@ -61,11 +70,19 @@ public class Client extends Auditable {
         this.email = email;
     }
 
-    public ClientRiskProfile getRiskProfile() {
-        return riskProfile;
+    public ClientRiskProfile getClientRiskProfile() {
+        return clientRiskProfile;
     }
 
-    public void setRiskProfile(ClientRiskProfile riskProfile) {
-        this.riskProfile = riskProfile;
+    public void setClientRiskProfile(ClientRiskProfile clientRiskProfile) {
+        this.clientRiskProfile = clientRiskProfile;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 }

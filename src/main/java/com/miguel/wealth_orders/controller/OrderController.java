@@ -1,62 +1,73 @@
 package com.miguel.wealth_orders.controller;
 
+import com.miguel.wealth_orders.controller.dto.OrderPathRequest;
 import com.miguel.wealth_orders.controller.dto.OrderRequest;
 import com.miguel.wealth_orders.controller.dto.OrderResponse;
+import com.miguel.wealth_orders.domain.Order;
 import com.miguel.wealth_orders.domain.enums.OrderStatus;
+import com.miguel.wealth_orders.exception.order.OrderPatchInvalidRequestException;
 import com.miguel.wealth_orders.service.OrderService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URI;
 import java.util.List;
 
-@RestController("/api/v1")
+@RestController
+@RequestMapping("/api/v1")
 public class OrderController {
 
-    private OrderService orderService;
+    private final OrderService orderService;
 
     public OrderController(OrderService orderService) {
         this.orderService = orderService;
     }
 
-    @PostMapping("/clients/{clientId}/orders")
-    public OrderResponse createNewOrderForClient(@RequestParam Long id, @RequestBody OrderRequest orderRequest) {
-        // | place order | **201** + Location | 400, 404 client, 422 (R3) |
-        var order = this.orderService.createNewOrderForClient(id, orderRequest);
-        return OrderResponse.from(order);
+    @PostMapping("/clients/{id}/orders")
+    public ResponseEntity<OrderResponse> createNewOrderForClient(@PathVariable Long id, @Valid @RequestBody OrderRequest orderRequest) {
+        Order order = this.orderService.placeOrder(id, orderRequest);
+
+        URI uriLocation = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/api/v1/orders/{id}").buildAndExpand(order.getId()).toUri();
+        return ResponseEntity.created(uriLocation).eTag(String.valueOf(order.getVersion())).body(OrderResponse.from(order));
     }
 
     @GetMapping("/orders/{id}")
-    public OrderResponse getOrderByOrderId(@RequestParam Long id) {
-        // | get one order | **200** | 404 |
-        var order = this.orderService.getOrderByOrderId(id);
-        return OrderResponse.from(order);
+    public ResponseEntity<OrderResponse> getOrderByOrderId(@PathVariable Long id) {
+        Order order = this.orderService.getOrder(id);
+        return ResponseEntity.ok(OrderResponse.from(order));
     }
 
-    @GetMapping("clients/{clientId}/orders")
-    public List<OrderResponse> getClientOrders(@RequestParam Long clientId, @RequestParam OrderStatus orderStatus) {
-        // | client's orders, optional status filter | **200** | 404 client |
-        var orderList = this.orderService.getClientOrders(clientId, orderStatus);
-        return orderList.stream().map(OrderResponse::from).toList();
+    @GetMapping("clients/{id}/orders")
+    public ResponseEntity<List<OrderResponse>> getClientOrders(@PathVariable Long id,
+                                                               @RequestParam(required = false) OrderStatus orderStatus) {
+        List<Order> orderList = this.orderService.getClientOrders(id, orderStatus);
+        return ResponseEntity.ok(orderList.stream().map(OrderResponse::from).toList());
     }
 
     @PatchMapping("orders/{id}")
-    public OrderResponse patchOrderByOrderId(@RequestParam Long id, @RequestBody OrderRequest orderRequest) {
-        // | change quantity and/or limitPrice | **200** | 400, 404, 409 (R2) |
+    public ResponseEntity<OrderResponse> patchOrderByOrderId(@PathVariable Long id, @Valid @RequestBody OrderPathRequest orderPathRequest) {
+        if (orderPathRequest.limitPrice() == null && orderPathRequest.quantity() == null) {
+            throw new OrderPatchInvalidRequestException();
+        }
 
-        var order = this.orderService.patchOrderByOrderId(id, orderRequest);
-        return OrderResponse.from(order);
+        Order order = this.orderService.patchOrderByOrderId(id, orderPathRequest);
+        return ResponseEntity.ok(OrderResponse.from(order));
     }
 
     @PostMapping("orders/{id}/cancel")
-    public OrderResponse cancelOrderByOrderId(@RequestParam Long id) {
-        // | cancel (an action, not a CRUD update) | **200** | 404, 409 (R2) |
-        var order = this.orderService.cancelOrderByOrderId(id);
-        return OrderResponse.from(order);
+    public ResponseEntity<OrderResponse> cancelOrderByOrderId(@PathVariable Long id) {
+        Order order = this.orderService.cancelByOrderId(id);
+
+        return ResponseEntity.ok(OrderResponse.from(order));
     }
 
     @PostMapping("orders/{id}/execute")
-    public OrderResponse executeOrderByOrderId(@RequestParam Long id) {
-        // | mark executed | **200** | 404, 409 (R2) |
-        var order = this.orderService.executeOrderByOrderId(id);
-        return OrderResponse.from(order);
+    public ResponseEntity<OrderResponse> executeOrderByOrderId(@PathVariable Long id) {
+        Order order = this.orderService.executeOrderByOrderId(id);
+
+        return ResponseEntity.ok(OrderResponse.from(order));
     }
 }

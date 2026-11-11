@@ -7,10 +7,12 @@ import com.miguel.wealth_orders.domain.enums.OrderType;
 
 import java.math.BigDecimal;
 
-public record OrderResponse(Long id, Client client, String isin, OrderType orderType, BigDecimal quantity,
+public record OrderResponse(Long id, Long clientId, String fullName, String isin, OrderType orderType,
+                            BigDecimal quantity,
                             BigDecimal limitPrice,
                             OrderStatus orderStatus) {
     public static OrderResponse from(Order order) {
-        return new OrderResponse(order.getId(), order.getClient(), order.getIsin(), order.getOrderType(), order.getQuantity(), order.getLimitPrice(), order.getOrderStatus());
+        Client client = order.getClient();
+        return new OrderResponse(order.getId(), client.getId(), client.getFullName(), order.getIsin(), order.getOrderType(), order.getQuantity(), order.getLimitPrice(), order.getOrderStatus());
     }
 }
